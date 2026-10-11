@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#05050a;color:#e8f6ff;font-family:system-ui,sans-serif;overflow:hidden}
+#pages{display:flex;height:100%;overflow-x:scroll;scroll-snap-type:x mandatory;scrollbar-width:none}
+#pages::-webkit-scrollbar{display:none}
+.page{min-width:100vw;height:100%;scroll-snap-align:center;padding:40px 20px;display:flex;flex-direction:column;align-items:center}
+.orb{width:150px;height:150px;border-radius:50%;margin:50px 0 20px;background:radial-gradient(circle at 35% 30%,#9ff,#08f 45%,#012 80%);box-shadow:0 0 50px #0af,0 0 100px #06f6;animation:p 3s infinite}
+.orb.on{animation:p .6s infinite}
+@keyframes p{50%{transform:scale(1.08);box-shadow:0 0 80px #0cf,0 0 140px #08f8}}
+#out{min-height:90px;text-align:center;font-size:17px;max-width:90%;color:#9fe}
+.row{display:flex;gap:10px;width:100%;margin-top:auto}
+input{flex:1;padding:14px;border-radius:14px;border:1px solid #0af5;background:#0af1;color:#fff;font-size:16px}
+button{border:0;border-radius:14px;padding:14px 18px;background:#08f;color:#fff;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;width:100%;margin-top:30px}
+.app{background:#0af1;border:1px solid #0af4;border-radius:18px;padding:22px 6px;text-align:center;font-size:15px}
+h2{margin-top:20px}
+.big{margin-top:40px;width:100%;padding:40px;font-size:22px;background:#c0392b}
+</style></head><body>
+<div id="pages">
+  <!-- ESQUERDA: YT MUSIC -->
+  <div class="page"><h2>🎵 YT Music</h2>
+    <button class="big" onclick="openApp('YT Music')">Abrir YT Music</button>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="app" onclick="ask('toca música relaxante no YT Music')">Relaxar</div>
+      <div class="app" onclick="ask('abre o YT Music')">Continuar</div>
+    </div>
+  </div>
+  <!-- CENTRO: JARVIS -->
+  <div class="page">
+    <div class="orb" id="orb" onclick="listen()" oncontextmenu="return false"></div>
+    <div id="out">Toca na bola e fala.</div>
+    <div class="row"><input id="txt" placeholder="Escreve um comando..." onkeydown="if(event.key==='Enter')ask(this.value)">
+    <button onclick="ask(txt.value)">➤</button><button onclick="setKey()">⚙</button></div>
+  </div>
+  <!-- DIREITA: APPS -->
+  <div class="page"><h2>Apps</h2><div class="grid" id="grid"></div></div>
+</div>
+<script>
+// ====== EDITA AQUI as tuas apps predefinidas (nome como aparece no telemóvel) ======
+const APPS=["WhatsApp","Instagram","Chrome","Câmara","Definições","Mapas","Gmail","Discord","YouTube"];
+const MODEL="openai/gpt-oss-20b"; // ou "openai/gpt-oss-120b"
+const $=id=>document.getElementById(id), A=window.Android;
+$('pages').scrollLeft=innerWidth; // começa no centro
+$('grid').innerHTML=APPS.map(a=>`<div class="app" onclick="openApp('${a}')">${a}</div>`).join('');
+function openApp(n){ if(A&&!A.openApp(n)) say('Não encontrei a app '+n); }
+function say(t){ $('out').textContent=t; if(A) A.speak(t); }
+function setKey(){ const k=prompt('Chave API da Groq:'); if(k) localStorage.setItem('gk',k.trim()); }
+function listen(){ $('orb').classList.add('on'); $('out').textContent='A ouvir...'; if(A) A.listen(); }
+function onVoice(t){ $('orb').classList.remove('on'); if(t) ask(t); else $('out').textContent='Não percebi.'; }
+async function ask(q){
+  q=(q||'').trim(); if(!q) return; txt.value='';
+  const key=localStorage.getItem('gk'); if(!key){ setKey(); return; }
+  $('out').textContent='...';
+  try{
+    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
+      body:JSON.stringify({model:MODEL,response_format:{type:'json_object'},messages:[
+        {role:'system',content:'És o JARVIS, assistente num telemóvel Android. Responde em português de Portugal, curto. Responde SEMPRE em JSON: {"say":"o que dizes","open":"nome exato da app a abrir ou vazio"}. Apps do utilizador: '+APPS.join(', ')+', YT Music.'},
+        {role:'user',content:q}]})});
+    const d=await r.json(); const j=JSON.parse(d.choices[0].message.content);
+    say(j.say||'Feito.'); if(j.open) setTimeout(()=>openApp(j.open),1200);
+  }catch(e){ $('out').textContent='Erro: '+e.message; }
+}
+</script></body></html>
